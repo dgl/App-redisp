@@ -1,4 +1,5 @@
-package main;
+package # hide from search.cpan.org
+        main;
 sub eval_ctx { eval "sub { $_[0] }" } # Here to avoid any closures
 
 package App::redisp;
@@ -60,7 +61,7 @@ my %special = (
   keyword => sub {
     my($param) = @_;
     if($param =~ /^\s*(\w+)\s+([^\%\@\$].*)/) {
-      $param = "redis_raw(q{$1}, $2)";
+      $param = "redis(q{$1}, $2)";
       debug "Replaced with '$param'\n";
     }
     return $param;
@@ -189,13 +190,25 @@ sub _install_commands {
   for my $cmd(@COMMANDS) {
     next if exists $redis_special_commands{$cmd};
     *{"main::$cmd"} = sub(@) {
-      $self->redis->$cmd(@_)->recv;
+      my @items = $self->redis->$cmd(@_)->recv;
+
+      if(@items == 1 && ref $items[0] eq 'ARRAY') {
+        return @{$items[0]};
+      } else {
+        return @items;
+      }
     };
   }
 
-  *{"main::redis_raw"} = sub(@) {
+  *{"main::redis"} = sub(@) {
     my($cmd, @args) = @_;
-    $self->redis->$cmd(@args)->recv;
+    my @items = $self->redis->$cmd(@args)->recv;
+
+    if(@items == 1 && ref $items[0] eq 'ARRAY') {
+      return @{$items[0]};
+    } else {
+      return @items;
+    }
   };
 }
 
@@ -245,6 +258,7 @@ sub _find_referenced {
  localhost> $foobar
  10
 
+ # Actually these next ones aren't implemented yet...
  localhost> .encoding utf-8
  localhost> .server xxx
  localhost> .reconnect
@@ -301,6 +315,39 @@ In Redis a key has one type; in Perl a glob reference may have HASH, ARRAY,
 SCALAR, etc values. This application makes Perl match the Redis behaviour, it's
 invalid to use more than one type at a particular name. The error will be:
 C<ERR Operation against a key holding the wrong kind of value>.
+
+Due to the way this works it's impossible to use symbolic references (e.g.
+C<${"foo$a"}>), your code needs to reference top level keys it uses at compile
+time.
+
+=head1 EXAMPLES
+
+Yet more examples, because the synopsis section was getting sort of big.
+
+C<info> is a command that returns a hash, so to grab something like the version
+you can do this:
+
+ localhost> info
+ [returns big hash]
+
+ localhost> info->{redis_version}
+ "2.1.10"
+
+Due to some commands clashing with Perl keywords you can't use them as
+functions. C<Keys> and C<exists> is something notable for this.
+
+  localhost> keys "foo*" # Special cased
+
+  localhost> sort keys "foo*" # doesn't work as you'd expect
+
+  localhost> sort redis qw(keys foo*) # does what you wanted
+
+Pub/sub can be used, but you need to write some code yourself:
+XXX: This doesn't work at all yet!
+
+ localhost> subscribe foo, sub { print "@_\n" }
+ [prints messages, ^C stops, but you'll need to unsubscribe manually]
+ localhost> unsubscribe foo
 
 =head1 BUGS
 
