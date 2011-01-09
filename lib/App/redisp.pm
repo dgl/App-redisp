@@ -1,4 +1,5 @@
-package # hide from search.cpan.org
+package App::redisp;
+package # hide
         main;
 sub eval_ctx { eval "sub { $_[0] }" } # Here to avoid any closures
 
