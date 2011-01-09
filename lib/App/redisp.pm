@@ -238,7 +238,7 @@ sub _find_referenced {
  $ redisp
  localhost> keys "foo*"
  "foobar", "food"
- localhost> set foobarbaz 12
+ localhost> set foobarbaz, 12
  "OK"
 
  # Or in perl style
