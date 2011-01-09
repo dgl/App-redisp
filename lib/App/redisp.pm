@@ -102,7 +102,7 @@ sub run {
     : ($self->host =~ /^([^.]+)/)[0];
 
   my $read = Term::ReadLine->new($short_server);
-  my $prompt = "$short_server> "; 
+  my $prompt = "$short_server> ";
 
   while(1) {
     my $line = $read->readline($prompt);
@@ -208,15 +208,21 @@ sub _find_referenced {
   my $op = $cv->START;
   do {
     if($op->name =~ /^(?:gv|gvsv|aelemfast|const)$/) {
-      my $type = $op->name eq 'gvsv' ? 'sv' : 
+      my $type = $op->name eq 'gvsv' ? 'sv' :
       $op->name eq 'aelemfast' ? 'av' :
       ($op->next->name =~ /2(.*)/)[0];
 
+      # B::Concise::concise_op was helpful here
       if($type) {
         my $idx = $op->isa("B::SVOP") ? $op->targ : $op->padix;
-        my $sv = (($cv->PADLIST->ARRAY)[1]->ARRAY)[$idx];
-        my $gv_name = $sv->can("NAME") ? $sv->NAME : $sv->PV;
 
+        my $sv;
+        if($op->isa("B::PADOP") || !${$op->sv}) {
+          $sv = (($cv->PADLIST->ARRAY)[1]->ARRAY)[$idx];
+        } else {
+          $sv = $op->sv;
+        }
+        my $gv_name = $sv->can("NAME") ? $sv->NAME : $sv->PV;
         push @vars, [$gv_name, $type] if $gv_name;
       }
     }
