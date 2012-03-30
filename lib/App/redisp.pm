@@ -17,11 +17,11 @@ use Tie::Redis;
 use constant HAVE_READKEY => eval { require Term::ReadKey };
 
 use App::redisp::Commands qw(@COMMANDS);
-use App::redisp::EvalWithLexicals; # Just a hacked copy of Eval::WithLexicals
+use Eval::WithLexicals;
 
 has eval_with_lexicals => (
   is => 'ro',
-  default => sub { App::redisp::EvalWithLexicals->new(
+  default => sub { Eval::WithLexicals->new(
       in_package => 'main'
     );
   }
@@ -191,7 +191,7 @@ sub _install_commands {
   for my $cmd(@COMMANDS) {
     next if exists $redis_special_commands{$cmd};
     *{"main::$cmd"} = sub(@) {
-      my @items = $self->redis->$cmd(@_)->recv;
+      my @items = $self->redis->{_conn}->$cmd(@_);
 
       if(@items == 1 && ref $items[0] eq 'ARRAY') {
         return @{$items[0]};
@@ -203,7 +203,7 @@ sub _install_commands {
 
   *{"main::redis"} = sub(@) {
     my($cmd, @args) = @_;
-    my @items = $self->redis->$cmd(@args)->recv;
+    my @items = $self->redis->{_conn}->$cmd(@args);
 
     if(@items == 1 && ref $items[0] eq 'ARRAY') {
       return @{$items[0]};
